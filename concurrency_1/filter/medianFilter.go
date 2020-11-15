@@ -115,19 +115,11 @@ func filter(filepathIn, filepathOut string) {
 	immutableData := makeImmutableMatrix(getPixelData(img))
 
 	splitHeight := height / 4
-	workerChannels := make([]chan [][]uint8, 4)
+	workerChannels := make([]chan [][]uint8, 4) // create slice of 4 channels
 	newData := make([][]uint8, width)
 	for i := range workerChannels {
-		workerChannels[i] = make(chan [][]uint8)
-		if i == 1 || i == 2 { //make individual channels
-			go worker(i*splitHeight-2, (i+1)*splitHeight+2, 0, width, immutableData, workerChannels[i]) //start 4 workers
-		} else if i == 0 {
-			go worker(i*splitHeight, (i+1)*splitHeight+2, 0, width, immutableData, workerChannels[i]) //start 4 workers
-
-		} else {
-			go worker(i*splitHeight-2, (i+1)*splitHeight, 0, width, immutableData, workerChannels[i]) //start 4 workers
-
-		}
+		workerChannels[i] = make(chan [][]uint8)                                                //make individual channels
+		go worker(i*splitHeight, (i+1)*splitHeight, 0, width, immutableData, workerChannels[i]) //start 4 workers
 
 	}
 

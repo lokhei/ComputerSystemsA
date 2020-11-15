@@ -43,11 +43,14 @@ func toChar(i int) rune {
 	return rune('A' + i)
 }
 
+// manager goes through executions and schedules transactions in optimal way
+// manager should be only one doing locking
+
 func manager(bank *bank, transactionQueue chan transaction, newQueue chan<- transaction) {
 	for {
 		select {
 		case t := <-transactionQueue:
-			if !(bank.accounts[t.from].locked && bank.accounts[t.to].locked) { // if both accounts not locked
+			if !(bank.accounts[t.from].locked && bank.accounts[t.to].locked) { // if either account unlocked
 				bank.lockAccount(t.from, "manager")
 				fmt.Println("Manager\t", "locked account", t.from)
 				bank.lockAccount(t.to, "manager")
@@ -98,7 +101,7 @@ func main() {
 	go manager(&bank, transactionQueue, newQueue) // go routine for manager
 
 	for i := 0; i < bankSize; i++ { // each account = 6 executor go routines
-		go executor(&bank, i, newQueue, done)
+		go executor(&bank, i, newQueue, done) // start 6 executors
 	}
 
 	for total := 0; total < transactions; total++ {

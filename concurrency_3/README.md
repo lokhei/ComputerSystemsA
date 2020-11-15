@@ -1,13 +1,13 @@
-# Distributed Lab 3: Message Broker in Go
+# Concurrency Lab 3
+
+> If you're stuck look at docs on [man7.org](http://man7.org/linux/man-pages/man7/pthreads.7.html)
 
 ## Using the lab sheet
 
 There are two ways to use the lab sheet, you can either:
 
-- [create a new repo from this template](https://github.com/UoB-CSA/distributed-lab-3/generate) - **this is the recommended way**
-- download a [zip file](https://github.com/UoB-CSA/distributed-lab-3/archive/master.zip)
-
-## Ratings
+- [create a new repo from this template](https://github.com/UoB-CSA/concurrency-lab-3/generate) - **this is the recommended way**
+- download a [zip file](https://github.com/UoB-CSA/concurrency-lab-3/archive/master.zip)
 
 Each question is rated to help you balance your work:
 
@@ -17,103 +17,143 @@ Each question is rated to help you balance your work:
 - :red_circle::red_circle::red_circle::red_circle::white_circle: - Hard, useful for coursework extensions.
 - :red_circle::red_circle::red_circle::red_circle::red_circle: - Hard, beyond what you need for any part of the coursework.
 
-## Introduction
+## Question 1 - Hello World from pthreads :red_circle::red_circle::red_circle::red_circle::red_circle:
 
-We are going to use a variant of the publish-subscribe model which uses a
-message broker for distributing work between many contributors.
+Open `hello.c`. It's a sample Hello World program that prints `"Hello World"` using a pthread.
 
-The typical publish-subscribe model sends messages to all subscribers signed up
-to a topic. This works for distributing events that all subscribers should see
-or act on. For the case where we want just one subscriber to see an event, we
-want something more like a [worker pool](https://gobyexample.com/worker-pools)
-that accepts new machines joining the pool remotely and uses 'take' semantics to
-avoid workers duplicating work.
+### Create a new thread
 
-## Part 1: The Multiply Factory :red_circle::red_circle::white_circle::white_circle::white_circle:
+The `pthread_create()` function starts a new thread in the calling process.
 
-Look at the skeleton code you've been given. There are two complete components:
-
-1. A `broker` that handles creating channels, publishing `stubs.Pair` events to
-those channels, and subscriptions to those channels. When a subscriber sends a
-`stubs.Subscription` to a running instance of the broker, it will get callbacks
-for work whenever it is available.
-
-2. A `miner` that generates `stubs.Pair` events and publishes them to a
-`multiply` channel on the broker.
-
-You should be able to launch the broker with `go run broker/broker.go` and the
-miner with `go run miner/miner.go` -- nothing visible should happen except that
-the broker will print out a notification that the `multiply` channel has been
-created.
-
-Your first task is to complete the `Factory` in `factory/factory.go`.
-
-This factory should be a worker that:
-
-- sets up an RPC *server* that registers a `Multiply` procedure. This procedure
-  should accept a `stubs.Pair` and respond with a `stubs.JobReport`. You may
-also want to print out the operation, so you can see what the instance is doing
-while it's running. 
-- connects to the broker as an RPC *client*.
-- sends a `stubs.Subscription` request to the `multiply` channel, containing its
-  own `ip:port` string and the correct string for the broker to use to call its
-`Multiply` procedure.
-
-The required mechanism is illustrated in the sequence diagram below.
-
-![Part 1](content/part1.png)
-
-You'll know if this is working correctly because once the factory is subscribed
-the broker will start sending it work and printing out the results of jobs.
-
-You should be able to: 
-
-1.  Stop and restart the factory.
-
-2. run a second instance of the factory, and have it also process work.  *Note:
-you will need to tell the second factory to use a different port for its RPC
-server*.
-
-
-## Part 2: The Multiply-Divide Pipeline
-
-### Part 2a: Division :red_circle::red_circle::white_circle::white_circle::white_circle:
-
-Following the same steps, add a `Divide` procedure. It should also accept a `stubs.Pair` as the request and respond with a `stubs.JobReport`.
-
-Test your new procedure using two miners:
-
-```bash
-Miner 1
-go run miner/miner.go
-
-Miner 2
-go run miner/miner.go -topic divide
+```c
+pthread_create(&thread, NULL, hello_world, &n)
 ```
 
-You'll know the code is working when the broker reports results for division operations. You should be able run multiple instances of your Factory (on different ports), and stop and start each of them.
+1) `pthread_t *thread` : The pointer to the pthread struct for the thread we are creating.
+2) `const pthread_attr_t *attr` : The pointer to the pthread creation attributes. We pass `NULL` here to use the defaults.
+3) `void *(* start_routine)(void *)` : The pointer to the start routine for the thread. This routine must take one `void *` argument and return a `void *`.
+4) `void *arg` : The pointer to the argument to pass to this thread. Multiple arguments can passed with a struct.
 
-### Part 2b: Creating a Pipeline :red_circle::red_circle::red_circle::white_circle::white_circle:
+### Wait for a thread to finish execution
 
-In this part you will link your `Multiply` and `Divide` procedures to create a pipeline. For every *two* `Multiply` results produced, the factory should ask the broker to `Divide` them by each other.
+The pthread_join() function waits for the thread specified to terminate. If that thread has already terminated, then pthread_join() returns immediately. The thread specified must be joinable.
 
-This can be achieved by adding a new goroutine in the factory. When a `Multiply` procedure is completed, the factory should send each result to this goroutine. Once the goroutine has received two values, it should `Publish` a new `Pair` to the broker under the `divide` topic. It should then continue to wait for further results from the `Multiply` procedure.
-
-The required mechanism is illustrated in the sequence diagram below.
-
-![Part 2](content/part2.png)
-
-Test your pipeline using a single "multiply" miner. Do not use a "divide" miner this time.
-
-```bash
-go run miner/miner.go
+```c
+pthread_join(thread, NULL)
 ```
 
-You'll know the code is working when the broker reports results for division operations (the divisions will be the result of the pipeline). Again, you should be able run multiple instances of your Factory (on different ports), and stop and start each of them.
+1) `pthread_t thread` : The thread to join.
+2) `void **retval` : The pointer to a place to store the exit value of the thread.
 
-## Part 3: Triplets :red_circle::red_circle::red_circle::white_circle::white_circle:
+### Task
 
-The entire pipeline currently operates on `stubs.Pair`s. Modify it so that it
-instead works with Triplets of three integers. As well as the `factory`, you
-will need to edit the `miner` and `broker` code to accomplish this, and make a
-decision about what Divide means for three integer arguments.
+Run `hello.c` and verify that a message `"Hello from thread 1"` is printed. Modify the provided code so that 5 pthreads are started and they all print a hello message. Example output:
+
+```bash
+Hello from thread 2
+Hello from thread 3
+Hello from thread 1
+Hello from thread 4
+Hello from thread 5
+```
+
+<details>
+    <summary>Hint 1</summary>
+
+You should only need to modify the `main()` function.
+
+</details>
+
+<details>
+    <summary>Hint 2</summary>
+
+Be careful with your memory management. Make sure that the value the argument pointer points to is still valid when the thread tries to access it.
+
+</details>
+
+## Question 2 - C Quiz :red_circle::red_circle::red_circle::red_circle::red_circle:
+
+Open `quiz.c`. It's the quiz program from Lab 3. However, it is not complete. The skeleton you are given asks all the questions using pthreads and also starts the timer thread, but when 5s have passed the program does not terminate like it should.
+
+Use mutexes and condition variables (*not* busy waiting) to fix the quiz program.
+
+Here are some functions that you may find useful:
+
+- `pthread_mutex_init`
+- `pthread_mutex_lock`
+- `pthread_mutex_unlock`
+- `pthread_cond_init`
+- `pthread_cond_wait`
+- `pthread_cond_signal`
+
+<details>
+    <summary>Hint 1</summary>
+
+You should no longer be using `pthread_join`.
+
+</details>
+
+<details>
+    <summary>Hint 2</summary>
+
+Our solution uses 1 mutex and 1 condition variable. You can use one condition variable to wait on both of your conditions (timer and quiz answer).
+
+</details>
+
+<details>
+    <summary>Hint 3</summary>
+
+Your timer should notify your condition variable when the 5s have elapsed.
+
+</details>
+
+## Question 3 - Synchronous channels :red_circle::red_circle::red_circle::red_circle::red_circle:
+
+### Question 3a
+
+Implement a simple channel using mutexes and condition variables.
+
+- The channel should be for integers only.
+- The channels should be synchronous. The sender must block and wait for a corresponding receive. The receiver must block and wait for a corresponding send.
+- You can assume only one sender thread and one receiver thread.
+
+You've been provided with `example_3a.c` which uses your channel implementation to send 50 integers from a sender thread to a receiver thread. You are also given a header file `channel.h` and a basic skeleton `channel.c`.
+
+<details>
+    <summary>Hint 1</summary>
+
+This is easily achievable with 1 mutex and 2 condition variables.
+
+</details>
+
+<details>
+    <summary>Hint 2</summary>
+
+Use one condition variable for when the sender is waiting for the receiver. Another for when a receiver is waiting for a sender.
+
+Use a mutex to protect your struct from race conditions.
+
+</details>
+
+### OPTIONAL Question 3b
+
+Expand your simple channel to allow for multiple senders and receivers. You can also try to make your channel work with any data type.
+
+Consider what should happen when two threads try to send at the same time.
+Consider what should happen when two threads try to receive at the same time.
+
+To verify your solution run `example_3b.c`. This program uses 3 senders and 3 receivers to exchange a total of 150 integers.
+
+<details>
+    <summary>Hint 1</summary>
+
+You should keep track of how many threads are trying to send to the channel and how many threads are trying to receive from the channel.
+
+</details>
+
+<details>
+    <summary>Hint 2</summary>
+
+To support any data type allow copying of any `void *` to your channel bufffer. Keep track of the length of the contents in the buffer. Your receive function needs to say how many bytes have been received.
+
+</details>
